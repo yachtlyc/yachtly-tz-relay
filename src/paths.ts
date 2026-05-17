@@ -1,10 +1,13 @@
 /**
  * Signal K paths the relay can emit. Mirrors a subset of the dashboard's
- * `app/yachtly-connect/lib/vesselDataMapping.ts` — kept as a local copy so the
- * relay package can be vendored to a nav PC without the main repo.
+ * `app/yachtly-connect/lib/vesselDataMapping.ts` — kept as a local copy so
+ * the relay package can be vendored to a nav PC without the main repo.
  *
- * Engine + tank paths are listed but NOT emitted by Phase 1 of the relay —
- * TimeZero's UDP output is navigation-class NMEA 0183 only. See README.
+ * The `SK` constants below are the navigation-class paths emitted by the
+ * NMEA 0183 handlers. N2K paths are dynamic (per engine/tank/battery
+ * instance) so they're produced inline by n2kToSignalK.ts as raw strings.
+ * Hence `SignalKPath` is widened to `string` — the WS subscribe-filter
+ * compares by string equality regardless.
  */
 
 export const SK = {
@@ -29,4 +32,4 @@ export const SK = {
   waterTemperature: 'environment.water.temperature',
 } as const;
 
-export type SignalKPath = (typeof SK)[keyof typeof SK];
+export type SignalKPath = string;

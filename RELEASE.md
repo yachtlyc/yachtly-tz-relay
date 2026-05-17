@@ -6,9 +6,29 @@
 
 ---
 
+## v0.3.0 — multi-source bridge (this release)
+
+Adds support for **five fingerprinted gateway families** the dashboard's discovery banner had been detecting but couldn't consume in v0.2.0:
+
+- Digital Yacht NavLink2 (NMEA 0183 over TCP, port 2000)
+- Yacht Devices YDWG-02 (NMEA 0183 over TCP, port 1456 — **plus** YDWG RAW N2K over TCP, port 1457)
+- Simrad / B&G GoFree WIFI-1 (NMEA 0183 over TCP, port 2050)
+- Furuno TZtouch gateway (NMEA 0183 over TCP, port 10110)
+- Actisense W2K-1 (NMEA 0183 passthrough mode)
+
+YDWG-02 in N2K mode unlocks engine/tank/battery data (PGNs 127245, 127488, 127489, 127505, 127506, 127508) — the dashboard's Engine, Tanks & Electrical, and Steering tabs come alive on boats that have the gateway in RAW mode.
+
+New helper-control endpoints (`GET /helper/status`, `POST /helper/sources`, `DELETE /helper/sources/{id}`) let the dashboard banner hand off any gateway it detects via browser-side HTTP fingerprinting. Backwards-compatible: v0.2.0 dashboards keep working through the unchanged `/signalk` discovery + WebSocket stream.
+
+Closes Backlog item #8 for the NMEA 2000 → Signal K path via Yacht Devices RAW. **NGX-1 USB N2K stays open** — it's invisible to network discovery and needs a different adapter shape.
+
+The Actisense W2K-1 binary N2K mode is deferred — its NMEA 0183 passthrough still works in v0.3.0 via the generic `tcp-nmea0183` adapter.
+
+---
+
 ## What's already done
 
-- `yachtly-tz-relay` is a Node 20 + TypeScript package that bridges TimeZero UDP NMEA 0183 to Signal K WebSocket deltas.
+- `yachtly-tz-relay` is a Node 20 + TypeScript package that bridges multiple vessel-data sources to Signal K WebSocket deltas via an adapter interface.
 - The ESM source is bundled to a single CJS file via `esbuild` for compatibility with `@yao-pkg/pkg`.
 - Build config lives in `package.json` — `bundle`, `binaries`, and `binaries:mac-arm64` scripts.
 - The bundle has been smoke-tested locally; the relay binds UDP 11101 + HTTP/WS 8765, exposes `/signalk` discovery, and runs end-to-end against a synthetic NMEA UDP packet (see `RELEASE.md` historical PR commits for evidence).
@@ -35,11 +55,15 @@ node build/yachtly-helper.cjs
 Expected console output:
 
 ```
-[<timestamp>] Yachtly TZ Relay v0.2.0: UDP 11101 → HTTP/WS 8765
+[<timestamp>] Yachtly Helper v0.3.0: HTTP/WS on 0.0.0.0:8765
 [<timestamp>] Discovery endpoint: http://0.0.0.0:8765/signalk
-[<timestamp>] Read-only. Auth: disabled (set YACHTLY_RELAY_TOKEN to require a token).
-[<timestamp>] Supported NMEA sentences: RMC, GGA, VTG, HDT, HDM, HDG, DBT, DPT, MWV, MWD, MDA, MTW, VLW, VHW
+[<timestamp>] Auth: disabled (set YACHTLY_RELAY_TOKEN to require a token).
+[<timestamp>] auto-probe: scanning 19 hosts (budget 5000ms)
+[<timestamp>] udp-timezero listening on 0.0.0.0:11101
+[<timestamp>] auto-probe: 0 adapter(s) attached
 ```
+
+(Zero adapters is normal on a dev machine with no real gateway on the network — the helper still serves the discovery endpoint + WebSocket so the dashboard can connect, and any TimeZero UDP packet from the boat will still feed through.)
 
 `Ctrl+C` to stop.
 
@@ -90,14 +114,14 @@ If a Windows box isn't handy, ship anyway — the bundle has been verified local
 ### 6. Publish to GitHub Releases
 
 ```bash
-gh release create v0.2.0 \
+gh release create v0.3.0 \
   binaries/yachtly-connect-helper-windows.exe \
   binaries/yachtly-connect-helper-mac-apple-silicon \
   binaries/yachtly-connect-helper-mac-intel \
-  --title "Yachtly Connect Helper v0.2.0 — first crew-test build" \
-  --notes "First downloadable build of the Yachtly Connect Helper. Run on the nav PC to translate TimeZero NMEA UDP into Signal K for the Yachtly Crew dashboard.
+  --title "Yachtly Connect Helper v0.3.0 — multi-source bridge" \
+  --notes "Multi-source bridge. Runs on the nav PC and auto-detects TimeZero UDP, plus NavLink2 / YDWG-02 (NMEA 0183 + RAW N2K) / GoFree / Furuno TZtouch / Actisense W2K-1 over TCP. Emits a single Signal K WebSocket stream for the Yachtly Connect dashboard.
 
-**Unsigned** — first-run users will see a SmartScreen warning on Windows (click 'More info' → 'Run anyway') and a Gatekeeper prompt on macOS (right-click → Open the first time). Code-signing is queued for the Tauri rebuild (Option B in /Users/glennward/.claude/plans/we-have-an-exciting-quirky-catmull.md).
+**Unsigned** — first-run users will see a SmartScreen warning on Windows (click 'More info' → 'Run anyway') and a Gatekeeper prompt on macOS (right-click → Open the first time). Code-signing is queued for the Tauri rebuild follow-up.
 
 Includes:
 - yachtly-connect-helper-windows.exe (Windows x64)
@@ -105,11 +129,14 @@ Includes:
 - yachtly-connect-helper-mac-intel (macOS Intel)"
 ```
 
-GitHub will produce three download URLs in the format:
+> Heads-up: don't paste the runbook's verbatim release notes into the public release unedited — earlier drafts referenced a local plan-file path. Keep release notes generic.
+
+GitHub will produce three download URLs (the standalone `yachtlyc/yachtly-tz-relay` public repo — see "Repo divergence note" below):
+
 ```
-https://github.com/will8688/Yachtly-Crew/releases/download/v0.2.0/yachtly-connect-helper-windows.exe
-https://github.com/will8688/Yachtly-Crew/releases/download/v0.2.0/yachtly-connect-helper-mac-apple-silicon
-https://github.com/will8688/Yachtly-Crew/releases/download/v0.2.0/yachtly-connect-helper-mac-intel
+https://github.com/yachtlyc/yachtly-tz-relay/releases/download/v0.3.0/yachtly-connect-helper-windows.exe
+https://github.com/yachtlyc/yachtly-tz-relay/releases/download/v0.3.0/yachtly-connect-helper-mac-apple-silicon
+https://github.com/yachtlyc/yachtly-tz-relay/releases/download/v0.3.0/yachtly-connect-helper-mac-intel
 ```
 
 ### 7. Update the dashboard with the real URLs
@@ -140,9 +167,18 @@ If any step fails, fall back to the dev-test setup at `docs/Yachtly Connect/on-v
 
 ---
 
+## Repo divergence note (added after v0.2.0)
+
+The v0.2.0 release was published to a **separate public repo** at
+[`yachtlyc/yachtly-tz-relay`](https://github.com/yachtlyc/yachtly-tz-relay/releases) rather than under `will8688/Yachtly-Crew/releases/`. The local `gh` token authenticates as `yachtlyc` and doesn't have write access to the `will8688` monorepo; the standalone helper repo is also architecturally cleaner (helper is its own product, doesn't bloat the main app repo with ~150 MB of binaries per release).
+
+Consequence: relay source now lives in two places — `yachtly-tz-relay/` inside this monorepo (development), and `yachtlyc/yachtly-tz-relay` on GitHub (release-tagged copy). Future relay changes need mirroring across, or pick one as source of truth. See `yachtly-tz-relay/HANDOFF-TO-GLENN.md` for the full context Will captured at release time.
+
+---
+
 ## Notes for the next iteration (Option B — Tauri full installer)
 
-The strategy plan (`/Users/glennward/.claude/plans/we-have-an-exciting-quirky-catmull.md`) calls out a follow-up replacing this pkg approach with a proper Tauri-wrapped system-tray app:
+The crew-onboarding strategy plan calls out a follow-up replacing this pkg approach with a proper Tauri-wrapped system-tray app:
 
 - Code-signed on Windows (EV cert, ~$300/yr) and notarised on macOS (Apple Developer Programme — already a Yachtly Crew cost).
 - System tray icon with Open / Quit / Uninstall.
